@@ -38,7 +38,6 @@ warnings.filterwarnings("ignore")
 
 DATA_DIR = "data"
 OUTPUT_DIR = "addformer_ckpt"
-BEST_DIR = "best_models"
 MODEL_DIM = 256
 N_LAYER = 8
 N_HEAD = 8
@@ -455,7 +454,6 @@ if __name__ == "__main__":
         max_grad_norm=1.0,
         report_to="none",
         load_best_model_at_end=False,
-        metric_for_best_model="exact_match",
         dataloader_num_workers=2,
         save_total_limit=None,
         seed=SEED,
@@ -478,5 +476,4 @@ if __name__ == "__main__":
     else:
         trainer.train()
 
-    os.makedirs(BEST_DIR, exist_ok=True)
-    trainer.save_model(BEST_DIR)
+    trainer.save_model(OUTPUT_DIR)
