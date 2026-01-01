@@ -8,8 +8,13 @@ import json
 import gc
 import numpy as np
 import torch
+import matplotlib.pyplot as plt
+import multiprocessing as mp
+import queue
+import time
 from datasets import load_dataset
 from tqdm.auto import tqdm
+import matplotlib.ticker as ticker 
 from transformers import (
     AutoTokenizer,
     Trainer,
@@ -18,23 +23,14 @@ from transformers import (
     set_seed,
     LlamaConfig,
     LlamaForCausalLM,
+    TrainerCallback,
 )
 from transformers.trainer import Trainer as HFTrainer
+from transformers import logging as hf_logging
+from datasets import logging as ds_logging
 
-try:
-    from transformers.utils import logging as hf_logging
-
-    hf_logging.set_verbosity_error()
-except Exception:
-    pass
-
-try:
-    from datasets.utils import logging as ds_logging
-
-    ds_logging.set_verbosity_error()
-except Exception:
-    pass
-
+hf_logging.set_verbosity_error()
+ds_logging.set_verbosity_error()
 warnings.filterwarnings("ignore")
 
 DATA_DIR = "data"
@@ -178,9 +174,6 @@ class MathTokenizer:
         return len(self.chars)
 
     def save_pretrained(self, save_directory):
-        import json
-        import os
-
         os.makedirs(save_directory, exist_ok=True)
         vocab_file = os.path.join(save_directory, "vocab.json")
         with open(vocab_file, "w", encoding="utf-8") as f:
@@ -277,6 +270,93 @@ def preprocess_logits_for_metrics(logits, labels):
     if isinstance(logits, tuple):
         logits = logits[0]
     return logits.argmax(dim=-1)
+
+
+def _plot_process_worker(data_queue, output_dir):
+    plt.ion()
+    fig, (ax1, ax2) = plt.subplots(
+        2, 1, figsize=(10, 8), sharex=True, constrained_layout=True
+    )
+
+    try:
+        fig.canvas.manager.set_window_title("Training Monitor (Multiprocess)")
+    except Exception:
+        pass
+    ax1.set_title("Training Loss Curve")
+    ax1.set_ylabel("Loss")
+    ax1.grid(True, linestyle="--", alpha=0.6)
+    ax1.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
+    (line_loss,) = ax1.plot([], [], "r-", linewidth=1.5, label="Loss")
+    ax1.legend(loc="upper right")
+    ax2.set_title("Learning Rate Schedule")
+    ax2.set_ylabel("Learning Rate")
+    ax2.set_xlabel("Global Steps")
+    ax2.grid(True, linestyle="--", alpha=0.6)
+    ax2.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
+    (line_lr,) = ax2.plot([], [], "b-", linewidth=1.5, label="LR")
+    ax2.legend(loc="upper right")
+
+    steps = []
+    losses = []
+    lrs = []
+
+    running = True
+    while running:
+        try:
+            while not data_queue.empty():
+                item = data_queue.get_nowait()
+                if item is None:
+                    running = False
+                    break
+                
+                step, loss, lr = item
+                steps.append(step)
+                losses.append(loss)
+                lrs.append(lr)
+
+            if steps:
+                line_loss.set_data(steps, losses)
+                line_lr.set_data(steps, lrs)
+                
+                ax1.relim()
+                ax1.autoscale_view()
+                ax2.relim()
+                ax2.autoscale_view()
+                
+                fig.canvas.draw()
+                fig.canvas.flush_events()
+
+        except Exception:
+            pass
+        
+        plt.pause(0.5)
+
+    try:
+        plt.savefig(os.path.join(output_dir, "training_dynamics_final.png"))
+        plt.close(fig)
+    except Exception:
+        pass
+class DynamicPlotCallback(TrainerCallback):
+    def __init__(self, output_dir):
+        self.output_dir = output_dir
+        self.queue = mp.Queue()
+        self.process = mp.Process(
+            target=_plot_process_worker, args=(self.queue, self.output_dir)
+        )
+        self.process.daemon = True
+        self.process.start()
+
+    def on_log(self, args, state, control, logs=None, **kwargs):
+        if logs and "loss" in logs:
+            step = state.global_step
+            loss = logs["loss"]
+            lr = logs.get("learning_rate", 0.0)
+            self.queue.put((step, loss, lr))
+
+    def on_train_end(self, args, state, control, **kwargs):
+        self.queue.put(None)
+        if self.process.is_alive():
+            self.process.join(timeout=5)
 
 
 class MemSafeTrainer(HFTrainer):
@@ -388,6 +468,8 @@ def _find_latest_checkpoint(base_dir: str) -> Optional[str]:
 
 
 if __name__ == "__main__":
+    mp.set_start_method('spawn', force=True) 
+    
     set_seed(SEED)
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -451,7 +533,7 @@ if __name__ == "__main__":
         max_grad_norm=1.0,
         report_to="none",
         load_best_model_at_end=False,
-        dataloader_num_workers=2,
+        dataloader_num_workers=0, 
         save_total_limit=None,
         seed=SEED,
         eval_accumulation_steps=1,
@@ -466,6 +548,7 @@ if __name__ == "__main__":
         data_collator=default_data_collator,
         compute_metrics=compute_metrics,
         preprocess_logits_for_metrics=preprocess_logits_for_metrics,
+        callbacks=[DynamicPlotCallback(output_dir=OUTPUT_DIR)],
     )
 
     if latest_checkpoint:
