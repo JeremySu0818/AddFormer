@@ -9,6 +9,7 @@ import gc
 import numpy as np
 import torch
 from datasets import load_dataset
+from tqdm.auto import tqdm
 from transformers import (
     AutoTokenizer,
     Trainer,
@@ -294,7 +295,7 @@ class MemSafeTrainer(HFTrainer):
         model = self.model
         model.eval()
 
-        for step, batch in enumerate(eval_dataloader):
+        for step, batch in enumerate(tqdm(eval_dataloader, desc="Evaluating", leave=False)):
             batch = {k: v.to(self.args.device) for k, v in batch.items()}
 
             with torch.no_grad():
@@ -368,10 +369,6 @@ class MemSafeTrainer(HFTrainer):
         gc.collect()
         torch.cuda.empty_cache()
 
-        print(
-            f"評估完成: Loss={avg_loss:.4f}, Acc={avg_token_acc:.4f}, Exact={avg_exact_match:.4f}"
-        )
-
         return metrics
 
 
@@ -438,7 +435,7 @@ if __name__ == "__main__":
         output_dir=OUTPUT_DIR,
         disable_tqdm=False,
         overwrite_output_dir=True,
-        num_train_epochs=50,
+        num_train_epochs=100,
         per_device_train_batch_size=64,
         per_device_eval_batch_size=32,
         gradient_accumulation_steps=1,
