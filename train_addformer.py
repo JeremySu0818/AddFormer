@@ -518,7 +518,7 @@ if __name__ == "__main__":
         output_dir=OUTPUT_DIR,
         disable_tqdm=False,
         overwrite_output_dir=True,
-        num_train_epochs=100,
+        num_train_epochs=50,
         per_device_train_batch_size=64,
         per_device_eval_batch_size=32,
         gradient_accumulation_steps=1,
