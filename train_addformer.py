@@ -275,7 +275,7 @@ def preprocess_logits_for_metrics(logits, labels):
 def _plot_process_worker(data_queue, output_dir):
     plt.ion()
     fig, (ax1, ax2) = plt.subplots(
-        2, 1, figsize=(10, 8), sharex=True, constrained_layout=True
+        2, 1, figsize=(10, 8), sharex=False, constrained_layout=True
     )
 
     try:
@@ -285,7 +285,6 @@ def _plot_process_worker(data_queue, output_dir):
 
     ax1.set_title("Training Loss Curve")
     ax1.set_ylabel("Loss")
-    ax1.set_xlabel("Global Steps")
     ax1.grid(True, linestyle="--", alpha=0.6)
     ax1.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
     (line_loss,) = ax1.plot([], [], "r-", linewidth=1.5, label="Loss")
@@ -293,7 +292,6 @@ def _plot_process_worker(data_queue, output_dir):
 
     ax2.set_title("Learning Rate Schedule")
     ax2.set_ylabel("Learning Rate")
-    ax2.set_xlabel("Global Steps")
     ax2.grid(True, linestyle="--", alpha=0.6)
     ax2.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
     (line_lr,) = ax2.plot([], [], "b-", linewidth=1.5, label="LR")
@@ -334,11 +332,7 @@ def _plot_process_worker(data_queue, output_dir):
 
         plt.pause(0.5)
 
-    try:
-        plt.savefig(os.path.join(output_dir, "training_dynamics_final.png"))
-        plt.close(fig)
-    except Exception:
-        pass
+    plt.close(fig)
 
 
 class DynamicPlotCallback(TrainerCallback):
