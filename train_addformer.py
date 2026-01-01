@@ -14,7 +14,7 @@ import queue
 import time
 from datasets import load_dataset
 from tqdm.auto import tqdm
-import matplotlib.ticker as ticker 
+import matplotlib.ticker as ticker
 from transformers import (
     AutoTokenizer,
     Trainer,
@@ -282,12 +282,15 @@ def _plot_process_worker(data_queue, output_dir):
         fig.canvas.manager.set_window_title("Training Monitor (Multiprocess)")
     except Exception:
         pass
+
     ax1.set_title("Training Loss Curve")
     ax1.set_ylabel("Loss")
+    ax1.set_xlabel("Global Steps")
     ax1.grid(True, linestyle="--", alpha=0.6)
     ax1.xaxis.set_major_locator(ticker.MaxNLocator(integer=True))
     (line_loss,) = ax1.plot([], [], "r-", linewidth=1.5, label="Loss")
     ax1.legend(loc="upper right")
+
     ax2.set_title("Learning Rate Schedule")
     ax2.set_ylabel("Learning Rate")
     ax2.set_xlabel("Global Steps")
@@ -308,7 +311,7 @@ def _plot_process_worker(data_queue, output_dir):
                 if item is None:
                     running = False
                     break
-                
+
                 step, loss, lr = item
                 steps.append(step)
                 losses.append(loss)
@@ -317,18 +320,18 @@ def _plot_process_worker(data_queue, output_dir):
             if steps:
                 line_loss.set_data(steps, losses)
                 line_lr.set_data(steps, lrs)
-                
+
                 ax1.relim()
                 ax1.autoscale_view()
                 ax2.relim()
                 ax2.autoscale_view()
-                
+
                 fig.canvas.draw()
                 fig.canvas.flush_events()
 
         except Exception:
             pass
-        
+
         plt.pause(0.5)
 
     try:
@@ -336,6 +339,8 @@ def _plot_process_worker(data_queue, output_dir):
         plt.close(fig)
     except Exception:
         pass
+
+
 class DynamicPlotCallback(TrainerCallback):
     def __init__(self, output_dir):
         self.output_dir = output_dir
@@ -375,7 +380,9 @@ class MemSafeTrainer(HFTrainer):
         model = self.model
         model.eval()
 
-        for step, batch in enumerate(tqdm(eval_dataloader, desc="Evaluating", leave=False)):
+        for step, batch in enumerate(
+            tqdm(eval_dataloader, desc="Evaluating", leave=False)
+        ):
             batch = {k: v.to(self.args.device) for k, v in batch.items()}
 
             with torch.no_grad():
@@ -468,8 +475,8 @@ def _find_latest_checkpoint(base_dir: str) -> Optional[str]:
 
 
 if __name__ == "__main__":
-    mp.set_start_method('spawn', force=True) 
-    
+    mp.set_start_method("spawn", force=True)
+
     set_seed(SEED)
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -533,7 +540,7 @@ if __name__ == "__main__":
         max_grad_norm=1.0,
         report_to="none",
         load_best_model_at_end=False,
-        dataloader_num_workers=0, 
+        dataloader_num_workers=0,
         save_total_limit=None,
         seed=SEED,
         eval_accumulation_steps=1,
