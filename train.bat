@@ -7,12 +7,6 @@ if not exist ".venv" (
 
 call .venv\Scripts\activate.bat
 
-if %errorlevel% neq 0 (
-    echo 資料集生成失敗。
-    pause
-    exit /b
-)
-
 python train_addformer.py
 if %errorlevel% neq 0 (
     echo 訓練過程中出現錯誤。
