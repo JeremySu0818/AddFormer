@@ -556,5 +556,3 @@ if __name__ == "__main__":
         trainer.train(resume_from_checkpoint=latest_checkpoint)
     else:
         trainer.train()
-
-    trainer.save_model(OUTPUT_DIR)
