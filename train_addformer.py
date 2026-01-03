@@ -175,9 +175,33 @@ class MathTokenizer:
 
     def save_pretrained(self, save_directory):
         os.makedirs(save_directory, exist_ok=True)
+
         vocab_file = os.path.join(save_directory, "vocab.json")
         with open(vocab_file, "w", encoding="utf-8") as f:
             json.dump(self.token_to_id, f, ensure_ascii=False, indent=2)
+
+        tokenizer_config = {
+            "tokenizer_class": "MathTokenizer",
+            "model_max_length": self.model_max_length,
+            "padding_side": self.padding_side,
+            "bos_token": self.bos_token,
+            "eos_token": self.eos_token,
+            "unk_token": self.unk_token,
+            "pad_token": self.pad_token,
+        }
+        config_file = os.path.join(save_directory, "tokenizer_config.json")
+        with open(config_file, "w", encoding="utf-8") as f:
+            json.dump(tokenizer_config, f, ensure_ascii=False, indent=2)
+
+        special_tokens_map = {
+            "bos_token": self.bos_token,
+            "eos_token": self.eos_token,
+            "unk_token": self.unk_token,
+            "pad_token": self.pad_token,
+        }
+        map_file = os.path.join(save_directory, "special_tokens_map.json")
+        with open(map_file, "w", encoding="utf-8") as f:
+            json.dump(special_tokens_map, f, ensure_ascii=False, indent=2)
 
 
 class QATokenizer:
