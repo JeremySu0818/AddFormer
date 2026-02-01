@@ -1,15 +1,14 @@
 import argparse
 import os
-import re
 import torch
+import json
 from dataclasses import dataclass
-from typing import List, Optional
-from transformers import LlamaForCausalLM
+from transformers import LlamaForCausalLM, GenerationConfig
 
 
 @dataclass
 class MathTokenizer:
-    def __init__(self):
+    def __init__(self, model_max_length=64):
         self.chars = [
             "<pad>",
             "<s>",
@@ -44,173 +43,131 @@ class MathTokenizer:
         self.bos_token_id = self.token_to_id["<s>"]
         self.unk_token_id = self.token_to_id["<unk>"]
         self.padding_side = "left"
+        self.model_max_length = model_max_length
 
-    def __call__(self, texts, return_tensors=None, **kwargs):
+    @classmethod
+    def from_pretrained(cls, path):
+        config_path = os.path.join(path, "tokenizer_config.json")
+        vocab_path = os.path.join(path, "vocab.json")
+
+        tokenizer = cls()
+        if os.path.exists(config_path):
+            with open(config_path, "r", encoding="utf-8") as f:
+                config = json.load(f)
+                tokenizer.model_max_length = config.get("model_max_length", 64)
+
+        if os.path.exists(vocab_path):
+            with open(vocab_path, "r", encoding="utf-8") as f:
+                vocab = json.load(f)
+                tokenizer.token_to_id = vocab
+                tokenizer.id_to_token = {int(v): k for k, v in vocab.items()}
+
+        return tokenizer
+
+    def __call__(self, texts, return_tensors=None):
         if isinstance(texts, str):
             texts = [texts]
-        input_ids_list = [
-            [self.token_to_id.get(c, self.unk_token_id) for c in t] for t in texts
-        ]
+
+        input_ids_list = []
+        attention_mask_list = []
+
+        for text in texts:
+            ids = [self.token_to_id.get(c, self.unk_token_id) for c in text]
+
+            input_ids_list.append(ids)
+            attention_mask_list.append([1] * len(ids))
 
         if return_tensors == "pt":
-            return {"input_ids": torch.tensor(input_ids_list, dtype=torch.long)}
-        return {"input_ids": input_ids_list}
+            max_len = max(len(x) for x in input_ids_list)
+            padded_ids = []
+            padded_mask = []
+
+            for ids, mask in zip(input_ids_list, attention_mask_list):
+                pad_len = max_len - len(ids)
+                if self.padding_side == "left":
+                    ids = [self.pad_token_id] * pad_len + ids
+                    mask = [0] * pad_len + mask
+                else:
+                    ids = ids + [self.pad_token_id] * pad_len
+                    mask = mask + [0] * pad_len
+                padded_ids.append(ids)
+                padded_mask.append(mask)
+
+            return {
+                "input_ids": torch.tensor(padded_ids, dtype=torch.long),
+                "attention_mask": torch.tensor(padded_mask, dtype=torch.long),
+            }
+
+        return {"input_ids": input_ids_list, "attention_mask": attention_mask_list}
 
     def decode(self, token_ids, skip_special_tokens=False):
         res = ""
-        for i in token_ids:
-            idx = i.item() if hasattr(i, "item") else i
+        if isinstance(token_ids, torch.Tensor):
+            token_ids = token_ids.tolist()
+
+        for idx in token_ids:
             char = self.id_to_token.get(idx, "<unk>")
             if skip_special_tokens and char in ["<pad>", "<s>", "</s>"]:
                 continue
             res += char
         return res
 
-    def __len__(self):
-        return len(self.chars)
-
-
-class ConsoleUI:
-    @staticmethod
-    def info(msg: str):
-        print(f"[*] {msg}")
-
-    @staticmethod
-    def warn(msg: str):
-        print(f"[!] {msg}")
-
-    @staticmethod
-    def error(msg: str):
-        print(f"[x] {msg}")
-
-    @staticmethod
-    def header(ckpt: str, device: str, tokens: int):
-        print("-" * 50)
-        print(f" AddFormer Interactive Mode (Jeremy's Edition)")
-        print(f" Device: {device} | Max New Tokens: {tokens}")
-        print(f" Ckpt: {ckpt}")
-        print("-" * 50)
-
-    @staticmethod
-    def help():
-        print("\n:help - 顯示幫助 | :config - 顯示配置 | :max N - 設長度 | :q - 退出\n")
-
-
-def get_sorted_checkpoints(base_dir: str) -> List[str]:
-    if not os.path.isdir(base_dir):
-        return []
-    entries = [d for d in os.listdir(base_dir) if re.match(r"checkpoint-(\d+)$", d)]
-    return sorted(entries, key=lambda x: int(x.split("-")[1]), reverse=True)
-
-
-def select_checkpoint_interactive(root: str, ckpts: List[str]) -> Optional[str]:
-    if not ckpts:
-        return None
-    try:
-        import msvcrt
-
-        idx = 0
-        while True:
-            os.system("cls")
-            print(
-                f"Select Checkpoint (Root: {root})\nUse Arrows, Enter to confirm, Q to quit.\n"
-            )
-            for i, name in enumerate(ckpts):
-                print(f"{'->' if i == idx else '    '} {name}")
-            ch = msvcrt.getch()
-            if ch in (b"\xe0", b"\x00"):
-                code = msvcrt.getch()
-                if code == b"H":
-                    idx = (idx - 1) % len(ckpts)
-                elif code == b"P":
-                    idx = (idx + 1) % len(ckpts)
-            elif ch in (b"\r", b"\n"):
-                return os.path.join(root, ckpts[idx])
-            elif ch.lower() == b"q":
-                return None
-    except ImportError:
-        print("Available Checkpoints:")
-        for i, c in enumerate(ckpts):
-            print(f"{i}: {c}")
-        choice = input("Select index: ")
-        return os.path.join(root, ckpts[int(choice)]) if choice.isdigit() else None
-
-
-def generate_text(
-    model, tokenizer, prompt: str, device: torch.device, max_tokens: int
-) -> str:
-    enc = tokenizer(prompt, return_tensors="pt")
-    input_ids = enc["input_ids"].to(device)
-    eos_id = tokenizer.eos_token_id
-
-    with torch.no_grad():
-        output_ids = model.generate(
-            input_ids,
-            max_new_tokens=max_tokens,
-            do_sample=False,
-            pad_token_id=tokenizer.pad_token_id,
-            eos_token_id=eos_id,
-        )
-
-    return tokenizer.decode(output_ids[0], skip_special_tokens=True)
-
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--ckpt", type=str, default="best_models")
-    parser.add_argument("--device", default="auto")
-    parser.add_argument("--max-new-tokens", type=int, default=8)
+    parser.add_argument("--model_path", type=str, default="addformer_result")
+    parser.add_argument(
+        "--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu"
+    )
+    parser.add_argument("--max_new_tokens", type=int, default=128)
     args = parser.parse_args()
 
-    ckpt_path = args.ckpt
-    if not os.path.exists(ckpt_path):
-        ckpts = get_sorted_checkpoints("addformer_ckpt")
-        ckpt_path = select_checkpoint_interactive("addformer_ckpt", ckpts) or args.ckpt
-
-    device = torch.device(
-        "cuda" if torch.cuda.is_available() and args.device != "cpu" else "cpu"
-    )
-
-    ConsoleUI.info(f"Loading Model from {ckpt_path}...")
-
-    tokenizer = MathTokenizer()
+    print(f"Loading model from {args.model_path}...")
 
     try:
-        model = LlamaForCausalLM.from_pretrained(ckpt_path)
-        model.to(device)
+        tokenizer = MathTokenizer.from_pretrained(args.model_path)
+        model = LlamaForCausalLM.from_pretrained(args.model_path)
+        model.to(args.device)
         model.eval()
     except Exception as e:
-        ConsoleUI.error(f"Failed to load model: {e}")
+        print(f"Error loading model: {e}")
         return
 
-    max_new_tokens = args.max_new_tokens
-    ConsoleUI.header(ckpt_path, str(device), max_new_tokens)
+    print("Model loaded. Enter equations (e.g., '1+1='). Type 'exit' to quit.")
 
     while True:
         try:
-            user_in = input(">>> ").strip()
-        except EOFError:
-            break
-
-        if not user_in:
-            continue
-        if user_in.startswith(":"):
-            cmd = user_in[1:].lower()
-            if cmd in ("q", "quit", "exit"):
+            text = input("Input: ").strip()
+            if text.lower() in ["exit", "quit"]:
                 break
-            elif cmd == "help":
-                ConsoleUI.help()
-            elif cmd.startswith("max "):
-                try:
-                    max_new_tokens = int(cmd.split()[1])
-                except:
-                    ConsoleUI.error("Invalid number")
-            continue
+            if not text:
+                continue
 
-        prompt = user_in if "=" in user_in else user_in + "="
+            if "=" not in text:
+                text += "="
 
-        result = generate_text(model, tokenizer, prompt, device, max_new_tokens)
-        print(f"Result: {result}")
+            inputs = tokenizer(text, return_tensors="pt")
+            input_ids = inputs["input_ids"].to(args.device)
+            attention_mask = inputs["attention_mask"].to(args.device)
+
+            with torch.no_grad():
+                outputs = model.generate(
+                    input_ids=input_ids,
+                    attention_mask=attention_mask,
+                    max_new_tokens=args.max_new_tokens,
+                    pad_token_id=tokenizer.pad_token_id,
+                    eos_token_id=tokenizer.eos_token_id,
+                    do_sample=False,
+                    repetition_penalty=1.1,
+                )
+
+            generated_text = tokenizer.decode(outputs[0], skip_special_tokens=True)
+            print(f"Output: {generated_text}")
+
+        except KeyboardInterrupt:
+            break
+        except Exception as e:
+            print(f"Error during inference: {e}")
 
 
 if __name__ == "__main__":

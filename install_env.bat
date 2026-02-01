@@ -21,8 +21,8 @@ echo [4/6] Installing PyTorch (torch, CUDA 13.0)
 uv pip install torch --index-url https://download.pytorch.org/whl/cu130
     
 echo.
-echo [5/6] Installing transformers / tqdm / numpy / datasets / matplotlib
-uv pip install transformers tqdm numpy datasets matplotlib
+echo [5/6] Installing transformers / tqdm / numpy / datasets
+uv pip install transformers tqdm numpy datasets
 
 echo.
 echo [6/6] Installing accelerate
