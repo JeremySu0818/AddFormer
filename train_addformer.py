@@ -18,7 +18,7 @@ from datasets import logging as ds_logging
 hf_logging.set_verbosity_error()
 ds_logging.set_verbosity_error()
 
-DATA_DIR = "data"
+DATA_DIR = "data_add"
 OUTPUT_DIR = "addformer_result"
 MODEL_DIM = 64
 N_LAYER = 8
