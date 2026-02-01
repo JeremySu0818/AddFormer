@@ -7,7 +7,7 @@ if not exist ".venv" (
 
 call .venv\Scripts\activate.bat
 
-python train_subformer.py
+python train_addformer.py
 if %errorlevel% neq 0 (
     echo An error occurred during the training process.
     pause
