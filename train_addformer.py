@@ -56,6 +56,8 @@ class MathTokenizer:
             "^",
             "%",
             " ",
+            "Q",
+            "R",
         ]
         self.token_to_id = {c: i for i, c in enumerate(self.chars)}
         self.id_to_token = {i: c for i, c in enumerate(self.chars)}
