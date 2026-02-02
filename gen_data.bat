@@ -1,7 +1,7 @@
 @echo off
 chcp 65001 >nul
 
-echo [1/6] Checking virtual environment (.venv)
+echo [1/3] Checking virtual environment (.venv)
 if not exist ".venv" (
     echo     .venv not found, calling install_env.bat to setup environment...
     call install_env.bat
@@ -10,11 +10,11 @@ if not exist ".venv" (
 )
 
 echo.
-echo [2/6] Activating virtual environment
+echo [2/3] Activating virtual environment
 call .venv\Scripts\activate.bat
 
 echo.
-echo [3/6] Generating data
+echo [3/3] Generating data
 python prepare_data.py
 
 pause

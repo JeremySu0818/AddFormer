@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e
 
-echo "[1/6] Checking virtual environment (.venv)"
+echo "[1/3] Checking virtual environment (.venv)"
 if [ ! -d ".venv" ]; then
     echo "    .venv not found, calling install_env.sh to setup environment..."
     bash install_env.sh
@@ -10,11 +10,11 @@ else
 fi
 
 echo
-echo "[2/6] Activating virtual environment"
+echo "[2/3] Activating virtual environment"
 source .venv/bin/activate
 
 echo
-echo "[3/6] Generating data"
+echo "[3/3] Generating data"
 python prepare_data.py
 
 echo
