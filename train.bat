@@ -25,5 +25,4 @@ if %errorlevel% neq 0 (
 )
 
 echo.
-echo Training completed.
 pause
