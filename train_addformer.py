@@ -20,8 +20,8 @@ ds_logging.set_verbosity_error()
 
 DATA_DIR = "data_add"
 OUTPUT_DIR = "addformer"
-MODEL_DIM = 64
-N_LAYER = 8
+MODEL_DIM = 16
+N_LAYER = 2
 N_HEAD = 8
 MAX_LENGTH = 64
 SEED = 42
@@ -289,14 +289,14 @@ if __name__ == "__main__":
     args = TrainingArguments(
         output_dir=OUTPUT_DIR,
         disable_tqdm=False,
-        num_train_epochs=3200,
+        num_train_epochs=12800,
         per_device_train_batch_size=64,
         per_device_eval_batch_size=32,
         gradient_accumulation_steps=1,
         save_strategy="no",
         eval_strategy="no",
         logging_steps=100,
-        learning_rate=5e-6,
+        learning_rate=5e-5,
         weight_decay=0.0,
         warmup_ratio=0.3,
         lr_scheduler_type="cosine",

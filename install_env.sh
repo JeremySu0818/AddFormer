@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-
 set -e
 
 echo "[1/6] Checking and creating virtual environment (.venv)"
@@ -30,5 +29,4 @@ echo "[6/6] Installing accelerate"
 uv pip install "accelerate>=0.26.0"
 
 echo
-echo "===== All steps completed ====="
-read -p "Press any key to continue..." -n1 -s
+echo "All steps completed"

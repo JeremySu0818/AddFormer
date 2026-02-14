@@ -16,5 +16,3 @@ call .venv\Scripts\activate.bat
 echo.
 echo [3/3] Generating data
 python prepare_data.py
-
-pause

@@ -30,4 +30,3 @@ uv pip install "accelerate>=0.26.0"
 
 echo.
 echo All steps completed
-pause

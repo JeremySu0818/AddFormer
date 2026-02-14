@@ -16,6 +16,3 @@ source .venv/bin/activate
 echo
 echo "[3/3] Generating data"
 python prepare_data.py
-
-echo
-read -p "Press Enter to continue..."
